@@ -15,6 +15,8 @@ Shader "GTeleporter/Teleporter"
         _Color2("Color", Color) = (0, 0, 0, 0)
         _Glossiness2("Smoothness", Range(0, 1)) = 0
         [Gamma] _Metallic2("Metallic", Range(0, 1)) = 0
+        [HDR] _Emission1("Emission Color 1", Color) = (0, 0, 0, 0)
+        [HDR] _Emission2("Emission Color 2", Color) = (0, 0, 0, 0)
     }
     SubShader
     {

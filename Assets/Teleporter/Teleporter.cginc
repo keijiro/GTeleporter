@@ -23,6 +23,8 @@ half _Metallic;
 half4 _Color2;
 half _Glossiness2;
 half _Metallic2;
+half3 _Emission1;
+half3 _Emission2;
 
 // Dynamic properties
 float4 _EffectVector;
@@ -54,6 +56,7 @@ struct Varyings
     float2 texcoord : TEXCOORD0;
     float3 worldPos : TEXCOORD1;
     half4 ambient_ch : TEXCOORD2; // Ambient SH (xyz), channel select (w)
+    half3 emission : COLOR;
 
 #endif
 };
@@ -74,7 +77,9 @@ Attributes Vertex(Attributes input)
 // Geometry stage
 //
 
-Varyings VertexOutput(float3 wpos, half3 wnrm, float2 uv, half channel = 0)
+Varyings VertexOutput(
+    float3 wpos, half3 wnrm, float2 uv, half3 emission = 0, half channel = 0
+)
 {
     Varyings o;
 
@@ -96,6 +101,7 @@ Varyings VertexOutput(float3 wpos, half3 wnrm, float2 uv, half channel = 0)
     o.texcoord = uv;
     o.worldPos = wpos;
     o.ambient_ch = half4(ShadeSHPerVertex(wnrm, 0), channel);
+    o.emission = emission;
 
 #endif
     return o;
@@ -155,8 +161,8 @@ void Geometry(
 
         // Parameter value at the midpoint
         float m0 = 0.4 + Random(seed + 9) * 0.3;
-        float m1 = m0 + (Random(seed + 10) - 0.5) * 0.1;
-        float m2 = m0 + (Random(seed + 11) - 0.5) * 0.1;
+        float m1 = m0 + (Random(seed + 10) - 0.5) * 0.2;
+        float m2 = m0 + (Random(seed + 11) - 0.5) * 0.2;
 
         // Initial inflation animation
         float3 t_p0 = p0 + (p0 - center) * 4 * smoothstep(0, 0.05, param);
@@ -176,15 +182,19 @@ void Geometry(
         // Recalculate the normal vector.
         float3 normal = normalize(cross(t_p1 - t_p0, t_p2 - t_p0));
 
+        // Material animation
+        float3 em = lerp(_Emission1, _Emission2, Random(seed + 12));
+        em *= smoothstep(0.2, 0.5, param);
+
         // Vertex outputs
-        outStream.Append(VertexOutput(t_p0, normal, uv0));
-        outStream.Append(VertexOutput(t_p1, normal, uv1));
-        outStream.Append(VertexOutput(t_p2, normal, uv2));
+        outStream.Append(VertexOutput(t_p0, normal, uv0, em));
+        outStream.Append(VertexOutput(t_p1, normal, uv1, em));
+        outStream.Append(VertexOutput(t_p2, normal, uv2, em));
         outStream.RestartStrip();
 
-        outStream.Append(VertexOutput(t_p0, -normal, uv0));
-        outStream.Append(VertexOutput(t_p2, -normal, uv2));
-        outStream.Append(VertexOutput(t_p1, -normal, uv1));
+        outStream.Append(VertexOutput(t_p0, -normal, uv0, em));
+        outStream.Append(VertexOutput(t_p2, -normal, uv2, em));
+        outStream.Append(VertexOutput(t_p1, -normal, uv1, em));
         outStream.RestartStrip();
     }
     else
@@ -205,15 +215,19 @@ void Geometry(
         float3 t_p2 = mul(rot_m, p2 - center) * scale + center + move;
         float3 normal = normalize(cross(t_p1 - t_p0, t_p2 - t_p0));
 
+        // Material animation
+        float3 em = lerp(_Emission1, _Emission2, Random(seed + 12));
+        em *= smoothstep(0, 0.1, param) * smoothstep(0.3, 0.9, 1 - param);
+
         // Vertex outputs
-        outStream.Append(VertexOutput(t_p0, normal, uv0));
-        outStream.Append(VertexOutput(t_p1, normal, uv1));
-        outStream.Append(VertexOutput(t_p2, normal, uv2));
+        outStream.Append(VertexOutput(t_p0, normal, uv0, em));
+        outStream.Append(VertexOutput(t_p1, normal, uv1, em));
+        outStream.Append(VertexOutput(t_p2, normal, uv2, em));
         outStream.RestartStrip();
 
-        outStream.Append(VertexOutput(t_p0, -normal, uv0));
-        outStream.Append(VertexOutput(t_p2, -normal, uv2));
-        outStream.Append(VertexOutput(t_p1, -normal, uv1));
+        outStream.Append(VertexOutput(t_p0, -normal, uv0, em));
+        outStream.Append(VertexOutput(t_p2, -normal, uv2, em));
+        outStream.Append(VertexOutput(t_p1, -normal, uv1, em));
         outStream.RestartStrip();
     }
 }
@@ -276,7 +290,7 @@ void Fragment(
 
     // Output ambient light and edge emission to the emission buffer.
     half3 sh = ShadeSHPerPixel(data.normalWorld, input.ambient_ch.rgb, input.worldPos);
-    outEmission = half4(sh * data.diffuseColor, 1);
+    outEmission = half4(sh * data.diffuseColor + input.emission, 1);
 }
 
 #endif
