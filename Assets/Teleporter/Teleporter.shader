@@ -5,18 +5,14 @@ Shader "GTeleporter/Teleporter"
 {
     Properties
     {
-        [Header(Base Properties)]
         _Color("Albedo", Color) = (0, 0, 0, 0)
         _MainTex("Albedo", 2D) = "white" {}
         _Glossiness("Smoothness", Range(0, 1)) = 0.5
         [Gamma] _Metallic("Metallic", Range(0, 1)) = 0
 
-        [Header(Effect Properties)]
-        _Color2("Color", Color) = (0, 0, 0, 0)
-        _Glossiness2("Smoothness", Range(0, 1)) = 0
-        [Gamma] _Metallic2("Metallic", Range(0, 1)) = 0
-        [HDR] _Emission1("Emission Color 1", Color) = (0, 0, 0, 0)
-        [HDR] _Emission2("Emission Color 2", Color) = (0, 0, 0, 0)
+        [Header(Emission Colors)]
+        [HDR] _Emission1("Primary", Color) = (0, 0, 0, 0)
+        [HDR] _Emission2("Secondary", Color) = (0, 0, 0, 0)
     }
     SubShader
     {

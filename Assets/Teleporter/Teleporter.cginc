@@ -20,9 +20,6 @@ half _Glossiness;
 half _Metallic;
 
 // Effect properties
-half4 _Color2;
-half _Glossiness2;
-half _Metallic2;
 half3 _Emission1;
 half3 _Emission2;
 
@@ -55,7 +52,7 @@ struct Varyings
     half3 normal : NORMAL;
     float2 texcoord : TEXCOORD0;
     float3 worldPos : TEXCOORD1;
-    half4 ambient_ch : TEXCOORD2; // Ambient SH (xyz), channel select (w)
+    half3 ambient : TEXCOORD2;
     half3 emission : COLOR;
 
 #endif
@@ -65,21 +62,18 @@ struct Varyings
 // Vertex stage
 //
 
-Attributes Vertex(Attributes input)
+void Vertex(inout Attributes input)
 {
     // Only do object space to world space transform.
     input.position = mul(unity_ObjectToWorld, input.position);
     input.normal = UnityObjectToWorldNormal(input.normal);
-    return input;
 }
 
 //
 // Geometry stage
 //
 
-Varyings VertexOutput(
-    float3 wpos, half3 wnrm, float2 uv, half3 emission = 0, half channel = 0
-)
+Varyings VertexOutput(float3 wpos, half3 wnrm, float2 uv, half3 emission)
 {
     Varyings o;
 
@@ -100,7 +94,7 @@ Varyings VertexOutput(
     o.normal = wnrm;
     o.texcoord = uv;
     o.worldPos = wpos;
-    o.ambient_ch = half4(ShadeSHPerVertex(wnrm, 0), channel);
+    o.ambient = ShadeSHPerVertex(wnrm, 0);
     o.emission = emission;
 
 #endif
@@ -134,9 +128,9 @@ void Geometry(
     // Pass through the vertices if the deformation hasn't been started yet.
     if (param < 0)
     {
-        outStream.Append(VertexOutput(p0, n0, uv0));
-        outStream.Append(VertexOutput(p1, n1, uv1));
-        outStream.Append(VertexOutput(p2, n2, uv2));
+        outStream.Append(VertexOutput(p0, n0, uv0, 0));
+        outStream.Append(VertexOutput(p1, n1, uv1, 0));
+        outStream.Append(VertexOutput(p2, n2, uv2, 0));
         outStream.RestartStrip();
         return;
     }
@@ -255,7 +249,6 @@ half4 Fragment() : SV_Target { return 0; }
 // GBuffer construction pass
 void Fragment(
     Varyings input,
-    float vface : VFACE,
     out half4 outGBuffer0 : SV_Target0,
     out half4 outGBuffer1 : SV_Target1,
     out half4 outGBuffer2 : SV_Target2,
@@ -265,31 +258,25 @@ void Fragment(
     half3 albedo = tex2D(_MainTex, input.texcoord).rgb * _Color.rgb;
 
     // PBS workflow conversion (metallic -> specular)
-    half3 c1_diff, c1_spec, c2_diff, c2_spec;
+    half3 c_diff, c_spec;
     half not_in_use;
 
-    c1_diff = DiffuseAndSpecularFromMetallic(
-        albedo, _Metallic,       // input
-        c1_spec, not_in_use      // output
-    );
-
-    c2_diff = DiffuseAndSpecularFromMetallic(
-        _Color2.rgb, _Metallic2, // input
-        c2_spec, not_in_use      // output
+    c_diff = DiffuseAndSpecularFromMetallic(
+        albedo, _Metallic, // input
+        c_spec, not_in_use // output
     );
 
     // Update the GBuffer.
     UnityStandardData data;
-    float ch = input.ambient_ch.w;
-    data.diffuseColor = lerp(c1_diff, c2_diff, ch);
+    data.diffuseColor = c_diff;
     data.occlusion = 1;
-    data.specularColor = lerp(c1_spec, c2_spec, ch);
-    data.smoothness = lerp(_Glossiness, _Glossiness2, ch);
-    data.normalWorld = (vface < 0 ? -1 : 1) * input.normal;
+    data.specularColor = c_spec;
+    data.smoothness = _Glossiness;
+    data.normalWorld = input.normal;
     UnityStandardDataToGbuffer(data, outGBuffer0, outGBuffer1, outGBuffer2);
 
     // Output ambient light and edge emission to the emission buffer.
-    half3 sh = ShadeSHPerPixel(data.normalWorld, input.ambient_ch.rgb, input.worldPos);
+    half3 sh = ShadeSHPerPixel(data.normalWorld, input.ambient, input.worldPos);
     outEmission = half4(sh * data.diffuseColor + input.emission, 1);
 }
 
